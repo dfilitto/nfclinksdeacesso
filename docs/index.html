@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecionando...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f4f6f9;
+      color: #333;
+      text-align: center;
+      padding: 20px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e0e0;
+      border-top: 4px solid #004a8d; /* Azul institucional */
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .erro {
+      color: #b00020;
+      max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="spinner" id="loader"></div>
+  <p id="status">Carregando atividade...</p>
+
+  <script>
+    // 1. COLE AQUI O LINK CSV PUBLICADO DO SEU GOOGLE SHEETS
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQdbfuQXaUrr3FjpUsQPQnW4iarLB_JmmlrazDCUskWDG-npQrFdcPWPWtvvqD2HrcuTJrPbrTnym5b/pub?gid=0&single=true&output=csv";
+
+    // 2. LINK DE SEGURANÇA (caso a tag tenha um ID inválido ou a planilha falhe)
+    const FALLBACK_URL = "https://www.sp.senac.br";
+
+    async function redirecionar() {
+      const statusEl = document.getElementById("status");
+      const loaderEl = document.getElementById("loader");
+
+      // Lê o parâmetro ?id= da URL (ex: meusite.com/?id=auditorio)
+      const params = new URLSearchParams(window.location.search);
+      const tagId = (params.get("id") || "padrao").trim().toLowerCase();
+
+      try {
+        // Adiciona timestamp na requisição para evitar que o navegador use cache antigo
+        const cacheBuster = `&t=${new Date().getTime()}`;
+        const response = await fetch(CSV_URL + cacheBuster);
+
+        if (!response.ok) throw new Error("Falha ao acessar a planilha.");
+
+        const csvText = await response.text();
+        const linhas = csvText.split(/\r?\n/);
+
+        let destinoEncontrado = null;
+        let destinoPadrao = null;
+
+        // Percorre as linhas (começando do índice 1 para pular o cabeçalho)
+        for (let i = 1; i < linhas.length; i++) {
+          const linha = linhas[i].trim();
+          if (!linha) continue;
+
+          // Separa as colunas considerando vírgula ou ponto-e-vírgula
+          const colunas = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+          const idPlanilha = (colunas[0] || "").replace(/^"|"$/g, "").trim().toLowerCase();
+          const urlPlanilha = (colunas[1] || "").replace(/^"|"$/g, "").trim();
+
+          if (idPlanilha === tagId && urlPlanilha) {
+            destinoEncontrado = urlPlanilha;
+            break;
+          }
+
+          if (idPlanilha === "padrao" && urlPlanilha) {
+            destinoPadrao = urlPlanilha;
+          }
+        }
+
+        const urlFinal = destinoEncontrado || destinoPadrao || FALLBACK_URL;
+
+        // Garante que o link tenha http:// ou https://
+        const urlFormatada = /^https?:\/\//i.test(urlFinal) ? urlFinal : "https://" + urlFinal;
+
+        // Redireciona o usuário substituindo o histórico (evita loop ao clicar em "Voltar")
+        window.location.replace(urlFormatada);
+
+      } catch (erro) {
+        console.error(erro);
+        loaderEl.style.display = "none";
+        statusEl.innerHTML = `<span class="erro">Não foi possível carregar a atividade no momento.<br>Redirecionando para a página principal...</span>`;
+        setTimeout(() => {
+          window.location.replace(FALLBACK_URL);
+        }, 2000);
+      }
+    }
+
+    redirecionar();
+  </script>
+</body>
+</html>
